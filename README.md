@@ -206,14 +206,3 @@ runs next to the site as the `wallet-gateway` systemd unit. It reads
 `POST /spend` with a bearer token. Point the plugin at it with
 `walletApiUrl` and `walletApiToken`; on the site host `walletDbPath` can be
 used instead to write to the database directly.
-
-## Patched dependency: squad-rcon and Squad 10.6
-
-Squad 10.6 added `Party ID` to `ListPlayers` rows, which the stock `squad-rcon`
-1.1.8 regex does not accept, so the bot saw no players at all. The fix lives in
-`patches/squad-rcon-1.1.8-squad-10.6-party-id.patch`. After any `yarn install`
-re-apply it from the repo root:
-
-```bash
-patch -p1 < patches/squad-rcon-1.1.8-squad-10.6-party-id.patch
-```
