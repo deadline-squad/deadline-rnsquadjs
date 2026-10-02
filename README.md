@@ -107,6 +107,7 @@ Enable a plugin by adding it to a server's `plugins` array with
 | `autoUpdateMods`     | Tracks all Workshop mods; updates empty servers immediately or occupied servers after the round. |
 | `voteMap`            | Vote to switch to a vanilla map.                                        |
 | `voteMapMods`        | Vote to switch to a modded map.                                         |
+| `openPoints`         | RAAS: vote paid in site coins to turn fog of war off (`!открытьточки`). |
 | `skipmap`            | Vote to skip the current map.                                           |
 | `chatCommands`       | Chat commands: `!admins !report !stvol !roll !fix !discord !stats !help`.|
 | `randomizerMaps`     | Randomizes maps, factions and unit types on a new game.                 |
@@ -193,3 +194,26 @@ yarn new:plugin myPlugin
 
 CI runs typecheck, lint, format and tests on every push and pull request. See
 [CONTRIBUTING.md](./CONTRIBUTING.md).
+
+## Site coins for in-game commands
+
+`openPoints` charges coins from the website wallet (`wallets` table of the
+site's SQLite database). Game servers on other hosts reach it through the
+wallet gateway (`lib/wallet-gateway-main.js`, built by `yarn build`), which
+runs next to the site as the `wallet-gateway` systemd unit. It reads
+`WALLET_DB_PATH`, `WALLET_GATEWAY_TOKEN`, `WALLET_GATEWAY_HOST` and
+`WALLET_GATEWAY_PORT` (default `0.0.0.0:8791`) and serves
+`POST /spend` with a bearer token. Point the plugin at it with
+`walletApiUrl` and `walletApiToken`; on the site host `walletDbPath` can be
+used instead to write to the database directly.
+
+## Patched dependency: squad-rcon and Squad 10.6
+
+Squad 10.6 added `Party ID` to `ListPlayers` rows, which the stock `squad-rcon`
+1.1.8 regex does not accept, so the bot saw no players at all. The fix lives in
+`patches/squad-rcon-1.1.8-squad-10.6-party-id.patch`. After any `yarn install`
+re-apply it from the repo root:
+
+```bash
+patch -p1 < patches/squad-rcon-1.1.8-squad-10.6-party-id.patch
+```

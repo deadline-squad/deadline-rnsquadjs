@@ -10,6 +10,13 @@ const config = [
     plugins: [typescript()],
   },
   {
+    input: 'src/wallet-gateway-main.ts',
+    output: {
+      dir: 'lib',
+    },
+    plugins: [typescript()],
+  },
+  {
     input: './lib/types/index.d.ts',
     output: [{ file: 'lib/index.d.ts', format: 'es' }],
     plugins: [dts()],

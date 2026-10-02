@@ -19,6 +19,7 @@ import rnsStats from './rns-stats';
 import { rnsLogs } from './rnsLogs';
 import { rnsTelemetry } from './rnsTelemetry';
 import seed from './seed';
+import openPoints from './open-points';
 import skipmap from './skipmap';
 import smartBalance from './smart-balance';
 import squadLeaderRole from './squad-leader-role';
@@ -58,6 +59,7 @@ export const nativeManifest: SquadPlugin[] = [
   randomizerMaps,
   smartBalance,
   rnsStats,
+  openPoints,
   skipmap,
   seed,
 ];

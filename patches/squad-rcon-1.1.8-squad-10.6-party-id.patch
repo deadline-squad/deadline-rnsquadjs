@@ -1,0 +1,22 @@
+--- a/node_modules/squad-rcon/lib/index.js
++++ b/node_modules/squad-rcon/lib/index.js
+@@ -179,7 +179,7 @@
+ const getListPlayers = (rconEmitter, body) => {
+     const players = [];
+     for (const line of body.split('\n')) {
+-        const match = line.match(/ID: ([0-9]+) \| Online IDs: EOS: ([0-9a-f]{32}) steam: (\d{17}) \| Name: (.+) \| Team ID: ([0-9]+) \| Squad ID: ([0-9]+|N\/A) \| Is Leader: (True|False) \| Role: ([A-Za-z0-9_]*)\b/);
++        const match = line.match(/ID: ([0-9]+) \| Online IDs: EOS: ([0-9a-f]{32}) steam: (\d{17}) \| Name: (.+) \| Team ID: ([0-9]+) \| (?:Party ID: [^|]+\| )?Squad ID: ([0-9]+|N\/A) \| Is Leader: (True|False) \| Role: ([A-Za-z0-9_]*)\b/);
+         if (!match)
+             continue;
+         players.push({
+--- a/node_modules/squad-rcon/src/rcon/parsers/helpers.ts
++++ b/node_modules/squad-rcon/src/rcon/parsers/helpers.ts
+@@ -7,7 +7,7 @@
+ 
+   for (const line of body.split('\n')) {
+     const match = line.match(
+-      /ID: ([0-9]+) \| Online IDs: EOS: ([0-9a-f]{32}) steam: (\d{17}) \| Name: (.+) \| Team ID: ([0-9]+) \| Squad ID: ([0-9]+|N\/A) \| Is Leader: (True|False) \| Role: ([A-Za-z0-9_]*)\b/,
++      /ID: ([0-9]+) \| Online IDs: EOS: ([0-9a-f]{32}) steam: (\d{17}) \| Name: (.+) \| Team ID: ([0-9]+) \| (?:Party ID: [^|]+\| )?Squad ID: ([0-9]+|N\/A) \| Is Leader: (True|False) \| Role: ([A-Za-z0-9_]*)\b/,
+     );
+     if (!match) continue;
+ 

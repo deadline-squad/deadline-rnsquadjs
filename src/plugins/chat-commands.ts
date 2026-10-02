@@ -9,6 +9,13 @@ import { getAdmins, getPlayers } from './helpers';
 
 const msgArr = () => z.array(z.string()).default([]);
 
+/**
+ * Matches `!inv` case-insensitively, with or without a space before the
+ * squad number (`!inv 3`, `!inv3`, `!INV3`). Group 1 holds the arguments.
+ * The lookahead keeps longer words such as `!invite` from matching.
+ */
+const INV_COMMAND = /^!inv(?=\d|\s|$)\s*(.*)$/i;
+
 const optionsSchema = z.object({
   adminsEnable: z.boolean().default(false),
   reportEnable: z.boolean().default(false),
@@ -28,6 +35,7 @@ const optionsSchema = z.object({
   swapOnlyForVip: z.boolean().default(false),
   swapMaxDiff: z.coerce.number().default(0),
   swapTimeout: z.coerce.number().int().nonnegative().default(600000),
+  swapTimeoutVip: z.coerce.number().int().nonnegative().default(300000),
   statsTimeout: z.coerce.number().int().nonnegative().default(180000),
   stvolTimeout: z.coerce.number().int().nonnegative().default(300000),
   rollTimeout: z.coerce.number().int().nonnegative().default(1000),
@@ -68,6 +76,7 @@ export default definePlugin({
       invEnable,
       helpEnable,
       swapTimeout,
+      swapTimeoutVip,
       statsTimeout,
       stvolTimeout,
       rollTimeout,
@@ -117,7 +126,7 @@ export default definePlugin({
       sendWarningMessages(steamID, reportMessage);
 
       if (reportNotifyAdmins) {
-        const onlineAdmins = getAdmins(state, 'cameraman');
+        const onlineAdmins = getAdmins(state, 'canseeadminchat');
         const onlinePlayers = getPlayers(state);
         if (onlineAdmins && onlinePlayers) {
           const onlineAdminSteamIDs = onlinePlayers
@@ -310,7 +319,8 @@ export default definePlugin({
         }
       }
 
-      const cooldown = swapTimeout || 600000;
+      const isVip = Boolean(state.admins?.[steamID]?.reserve);
+      const cooldown = (isVip ? swapTimeoutVip : swapTimeout) || 600000;
       const existing = swapHistory.find((p) => p.steamID === steamID);
 
       if (existing && !isBalancing) {
@@ -344,9 +354,11 @@ export default definePlugin({
 
     const inv = (data: TChatMessage) => {
       if (!invEnable) return;
-      const { steamID, name, message } = data;
+      const command = data.message.trim().match(INV_COMMAND);
+      if (!command) return;
+      const { steamID, name } = data;
 
-      const squadNumber = message.trim().match(/\d+/)?.[0];
+      const squadNumber = command[1].match(/\d+/)?.[0];
       if (!squadNumber) {
         adminWarn(execute, steamID, 'Укажите номер отряда: !inv <номер>');
         return;
@@ -385,7 +397,7 @@ export default definePlugin({
       adminWarn(
         execute,
         leader.steamID,
-        `Игрок ${name} просится к вам в отряд.`,
+        `Игрок ${name} хочет зайти в ваш отряд.`,
       );
       adminWarn(
         execute,
@@ -447,6 +459,7 @@ export default definePlugin({
       [EVENTS.CHAT_COMMAND_ADMINS, admins],
       [EVENTS.CHAT_COMMAND_REPORT, report],
       [EVENTS.CHAT_COMMAND_R, report],
+      [EVENTS.CHAT_COMMAND_REP, report],
       [EVENTS.CHAT_COMMAND_STVOL, stvol],
       [EVENTS.CHAT_COMMAND_ROLL, roll],
       [EVENTS.CHAT_COMMAND_FIX, fix],
@@ -459,7 +472,7 @@ export default definePlugin({
       [EVENTS.CHAT_COMMAND_SW, swap],
       [EVENTS.CHAT_COMMAND_BALANCE, balanceOn],
       [EVENTS.CHAT_COMMAND_BALANCE_OFF, balanceOff],
-      [EVENTS.CHAT_COMMAND_INV, inv],
+      [EVENTS.CHAT_MESSAGE, inv],
     ];
 
     for (const [event, handler] of subscriptions) {

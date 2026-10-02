@@ -3,7 +3,7 @@ import { z } from 'zod';
 import { EVENTS } from '../constants';
 import { adminBroadcast } from '../core';
 import { definePlugin } from '../core/plugin';
-import { getPlayerBySteamID } from './helpers';
+import { getPlayerByName, getPlayerBySteamID } from './helpers';
 
 const DEFAULT_KNIFE_WEAPONS = [
   'SOCP',
@@ -60,6 +60,9 @@ export default definePlugin({
 
       const attacker = getPlayerBySteamID(state, attackerSteamID);
       if (!attacker?.name) return;
+
+      const victim = getPlayerByName(state, victimName);
+      if (victim?.teamID === attacker.teamID) return;
 
       const message = randomArrayElement(messageTemplates)
         .replace('{attacker}', attacker.name)
