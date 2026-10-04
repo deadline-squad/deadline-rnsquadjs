@@ -41,6 +41,7 @@ describe('openPoints', () => {
         walletDbPath: dbPath,
         cost: 400,
         needVotes: 2,
+        successChance: 1,
         voteDuration: 2000,
         voteTick: 1000,
         ...over,
@@ -222,5 +223,152 @@ describe('openPoints', () => {
 
     expect(commands.join('\n')).toContain('Коины сейчас недоступны');
     expect(state.votingActive).toBeFalsy();
+  });
+
+  describe('random start chance', () => {
+    const giveCoins = (steamID: string, balance: number) => {
+      const db = openDatabase(dbPath);
+      db.exec(
+        `INSERT INTO wallets (steam_id, balance) VALUES ('${steamID}', ${balance})`,
+      );
+      db.close();
+    };
+
+    const say = (
+      listener: { emit: (e: string, d: unknown) => void },
+      steamID: string,
+    ) =>
+      listener.emit(EVENTS.CHAT_COMMAND_OPEN_POINTS, { steamID, message: '' });
+
+    it('uses a 40% chance and 15 votes by default', () => {
+      const parsed = openPoints.optionsSchema!.parse({ walletDbPath: 'x' });
+
+      expect(parsed.successChance).toBe(0.4);
+      expect(parsed.needVotes).toBe(15);
+    });
+
+    it('warns without charging when the roll fails', async () => {
+      vi.spyOn(Math, 'random').mockReturnValue(0.9);
+      const { state, listener, commands } = createFakeState({
+        players,
+        currentMap: RAAS,
+      });
+      run(state, { successChance: 0.4 });
+
+      say(listener, 'p1');
+      await vi.advanceTimersByTimeAsync(0);
+
+      expect(commands.join('\n')).toContain('Не повезло');
+      expect(commands.join('\n')).not.toContain('запустил голосование');
+      expect(state.votingActive).toBeFalsy();
+      expect(readWallet('p1').wallet).toEqual({ balance: 1000, spent: 0 });
+    });
+
+    it('starts the vote and charges when the roll succeeds', async () => {
+      vi.spyOn(Math, 'random').mockReturnValue(0.39);
+      const { state, listener, commands } = createFakeState({
+        players,
+        currentMap: RAAS,
+      });
+      run(state, { successChance: 0.4 });
+
+      say(listener, 'p1');
+      await vi.advanceTimersByTimeAsync(0);
+
+      expect(commands.join('\n')).toContain('запустил голосование');
+      expect(state.votingActive).toBe(true);
+      expect(readWallet('p1').wallet.balance).toBe(600);
+    });
+
+    it('treats a roll exactly on the threshold as a miss', async () => {
+      vi.spyOn(Math, 'random').mockReturnValue(0.4);
+      const { state, listener } = createFakeState({
+        players,
+        currentMap: RAAS,
+      });
+      run(state, { successChance: 0.4 });
+
+      say(listener, 'p1');
+      await vi.advanceTimersByTimeAsync(0);
+
+      expect(state.votingActive).toBeFalsy();
+    });
+
+    it('gives each player one roll per round', async () => {
+      const random = vi.spyOn(Math, 'random').mockReturnValue(0.9);
+      const { state, listener, commands } = createFakeState({
+        players,
+        currentMap: RAAS,
+      });
+      run(state, { successChance: 0.4 });
+
+      say(listener, 'p1');
+      await vi.advanceTimersByTimeAsync(0);
+      random.mockReturnValue(0.1);
+      say(listener, 'p1');
+      await vi.advanceTimersByTimeAsync(0);
+
+      expect(commands.join('\n')).toContain(
+        'Открытие точек невозможно до следующего раунда',
+      );
+      expect(state.votingActive).toBeFalsy();
+      expect(readWallet('p1').wallet.balance).toBe(1000);
+    });
+
+    it('lets another player try after someone else missed', async () => {
+      giveCoins('p2', 500);
+      const random = vi.spyOn(Math, 'random').mockReturnValue(0.9);
+      const { state, listener } = createFakeState({
+        players,
+        currentMap: RAAS,
+      });
+      run(state, { successChance: 0.4 });
+
+      say(listener, 'p1');
+      await vi.advanceTimersByTimeAsync(0);
+      random.mockReturnValue(0.1);
+      say(listener, 'p2');
+      await vi.advanceTimersByTimeAsync(0);
+
+      expect(state.votingActive).toBe(true);
+      expect(readWallet('p2').wallet.balance).toBe(100);
+    });
+
+    it('resets every roll when the next game starts', async () => {
+      const random = vi.spyOn(Math, 'random').mockReturnValue(0.9);
+      const { state, listener } = createFakeState({
+        players,
+        currentMap: RAAS,
+      });
+      run(state, { successChance: 0.4 });
+
+      say(listener, 'p1');
+      await vi.advanceTimersByTimeAsync(0);
+      listener.emit(EVENTS.NEW_GAME, {});
+      random.mockReturnValue(0.1);
+      say(listener, 'p1');
+      await vi.advanceTimersByTimeAsync(0);
+
+      expect(state.votingActive).toBe(true);
+    });
+
+    it('keeps the roll spent when the player cannot pay', async () => {
+      vi.spyOn(Math, 'random').mockReturnValue(0.1);
+      const { state, listener, commands } = createFakeState({
+        players: [...players, makePlayer({ steamID: 'poor', name: 'Poor' })],
+        currentMap: RAAS,
+      });
+      run(state, { successChance: 0.4 });
+
+      say(listener, 'poor');
+      await vi.advanceTimersByTimeAsync(0);
+      say(listener, 'poor');
+      await vi.advanceTimersByTimeAsync(0);
+
+      expect(commands.join('\n')).toContain('Недостаточно коинов');
+      expect(commands.join('\n')).toContain(
+        'Открытие точек невозможно до следующего раунда',
+      );
+    });
   });
 });

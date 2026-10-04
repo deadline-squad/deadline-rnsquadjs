@@ -15,7 +15,8 @@ const optionsSchema = z.object({
   walletApiUrl: z.string().url().optional(),
   walletApiToken: z.string().min(1).optional(),
   cost: z.coerce.number().int().positive().default(400),
-  needVotes: z.coerce.number().int().positive().default(7),
+  needVotes: z.coerce.number().int().positive().default(15),
+  successChance: z.coerce.number().min(0).max(1).default(0.4),
   voteDuration: z.coerce.number().int().positive().default(120000),
   voteTick: z.coerce.number().int().positive().default(30000),
 });
@@ -26,7 +27,7 @@ const isRaas = (layer?: string | null) =>
 export default definePlugin({
   name: 'openPoints',
   description:
-    'Голосование за монеты на отключение тумана войны (открытие точек) в RAAS.',
+    'Платное голосование на отключение тумана войны (открытие точек) в RAAS: бросок с шансом, затем голосование.',
   optionsSchema,
   setup({ state, options, logger, registerDisposable }) {
     const { listener, execute } = state;
@@ -36,6 +37,7 @@ export default definePlugin({
       walletApiToken,
       cost,
       needVotes,
+      successChance,
       voteDuration,
       voteTick,
     } = options;
@@ -56,6 +58,7 @@ export default definePlugin({
     };
 
     let attemptUsed = false;
+    const rolledPlayers = new Set<string>();
     let voteActive = false;
     let fogOpened = false;
     let secondsToEnd = voteDuration / 1000;
@@ -117,7 +120,7 @@ export default definePlugin({
     const chatCommand = async ({ steamID }: TChatMessage) => {
       if (!isRaas(state.currentMap?.layer)) return;
 
-      if (attemptUsed) {
+      if (attemptUsed || rolledPlayers.has(steamID)) {
         adminWarn(
           execute,
           steamID,
@@ -127,6 +130,17 @@ export default definePlugin({
       }
       if (state.votingActive) {
         adminWarn(execute, steamID, 'В данный момент голосование уже идет!');
+        return;
+      }
+
+      rolledPlayers.add(steamID);
+      if (Math.random() >= successChance) {
+        logger.log(`[openPoints] ${steamID}: бросок не выпал`);
+        adminWarn(
+          execute,
+          steamID,
+          'Не повезло: голосование за открытие точек не запустилось. Коины не списаны.',
+        );
         return;
       }
 
@@ -146,6 +160,7 @@ export default definePlugin({
         balance = result.balance;
       } catch (error) {
         attemptUsed = false;
+        rolledPlayers.delete(steamID);
         logger.error(`[openPoints] ошибка списания коинов: ${error}`);
         adminWarn(
           execute,
@@ -192,6 +207,7 @@ export default definePlugin({
     const newGame = () => {
       finishVote();
       attemptUsed = false;
+      rolledPlayers.clear();
       votes = { '+': [], '-': [] };
 
       if (!fogOpened) return;
