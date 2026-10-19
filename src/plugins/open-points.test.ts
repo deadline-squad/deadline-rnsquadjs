@@ -276,6 +276,9 @@ describe('openPoints', () => {
       await vi.advanceTimersByTimeAsync(0);
 
       expect(commands.join('\n')).toContain('запустил голосование');
+      expect(commands).toContain(
+        'AdminWarn p1 Повезло: голосование за открытие точек запущено. Списано 400 коинов, остаток 600',
+      );
       expect(state.votingActive).toBe(true);
       expect(readWallet('p1').wallet.balance).toBe(600);
     });
