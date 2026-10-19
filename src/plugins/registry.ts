@@ -11,6 +11,7 @@ import bonuses from './bonuses';
 import broadcast from './broadcast';
 import chatCommands from './chat-commands';
 import fobExplosionDamage from './fobexplosiondamage';
+import killerNotify from './killer-notify';
 import knifeBroadcast from './knife-broadcast';
 import levelSync from './koth-lvl-sync';
 import { officialKothDb } from './officialKothDb';
@@ -41,6 +42,7 @@ export const legacyManifest: LegacyManifestEntry[] = [
 export const nativeManifest: SquadPlugin[] = [
   broadcast,
   knifeBroadcast,
+  killerNotify,
   autorestartServers,
   fobExplosionDamage,
   adminsReloadConfig,

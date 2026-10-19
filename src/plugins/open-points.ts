@@ -174,6 +174,11 @@ export default definePlugin({
       logger.log(
         `[openPoints] ${steamID} запустил голосование (списано ${cost}, остаток ${balance})`,
       );
+      adminWarn(
+        execute,
+        steamID,
+        `Повезло: голосование за открытие точек запущено. Списано ${cost} коинов, остаток ${balance}`,
+      );
       adminBroadcast(
         execute,
         `${initiator?.name ?? steamID} запустил голосование на открытие точек для всех игроков!`,
