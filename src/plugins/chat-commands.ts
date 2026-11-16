@@ -21,7 +21,6 @@ const optionsSchema = z.object({
   reportEnable: z.boolean().default(false),
   reportNotifyAdmins: z.boolean().default(false),
   reportWebhookUrl: z.string().default(''),
-  stvolEnable: z.boolean().default(false),
   fixEnable: z.boolean().default(false),
   discordEnable: z.boolean().default(false),
   statsEnable: z.boolean().default(false),
@@ -34,10 +33,7 @@ const optionsSchema = z.object({
   helpEnable: z.boolean().default(true),
   swapOnlyForVip: z.boolean().default(false),
   swapMaxDiff: z.coerce.number().default(0),
-  swapTimeout: z.coerce.number().int().nonnegative().default(600000),
-  swapTimeoutVip: z.coerce.number().int().nonnegative().default(300000),
   statsTimeout: z.coerce.number().int().nonnegative().default(180000),
-  stvolTimeout: z.coerce.number().int().nonnegative().default(300000),
   rollTimeout: z.coerce.number().int().nonnegative().default(1000),
   invTimeout: z.coerce.number().int().nonnegative().default(60000),
   adminsMessage: msgArr(),
@@ -49,12 +45,6 @@ const optionsSchema = z.object({
   bonusWarnMessage: msgArr(),
 });
 
-type SwapHistoryItem = {
-  steamID: string;
-  deletionTimer: NodeJS.Timeout;
-  startTime: number;
-};
-
 export default definePlugin({
   name: 'chatCommands',
   description: 'Чат-команды игроков и админов.',
@@ -64,7 +54,6 @@ export default definePlugin({
     const {
       adminsEnable,
       reportEnable,
-      stvolEnable,
       fixEnable,
       discordEnable,
       statsEnable,
@@ -75,10 +64,7 @@ export default definePlugin({
       balanceOffEnable,
       invEnable,
       helpEnable,
-      swapTimeout,
-      swapTimeoutVip,
       statsTimeout,
-      stvolTimeout,
       rollTimeout,
       invTimeout,
       adminsMessage,
@@ -93,11 +79,10 @@ export default definePlugin({
       reportWebhookUrl,
     } = options;
 
-    let stvolPlayers: string[] = [];
     let rollPlayers: string[] = [];
     let timeoutPlayers: string[] = [];
     let invTimeoutPlayers: string[] = [];
-    const swapHistory: SwapHistoryItem[] = [];
+    const swappedPlayers = new Set<string>();
 
     const timers = new Set<NodeJS.Timeout>();
     const later = (fn: () => void, ms: number) => {
@@ -173,24 +158,6 @@ export default definePlugin({
       }
     };
 
-    const stvol = (data: TChatMessage) => {
-      if (!stvolEnable) return;
-      const { name, steamID } = data;
-
-      if (stvolPlayers.includes(steamID)) {
-        sendWarningMessages(steamID, stvolTimeOutMessage);
-        return;
-      }
-
-      const range = Math.floor(Math.random() * 31 + 1);
-      adminBroadcast(execute, `У ${name} ствол ${range}см`);
-      stvolPlayers.push(steamID);
-
-      later(() => {
-        stvolPlayers = stvolPlayers.filter((player) => player !== steamID);
-      }, stvolTimeout);
-    };
-
     const roll = (data: TChatMessage) => {
       if (!rollEnable) return;
       const { name, steamID } = data;
@@ -215,11 +182,10 @@ export default definePlugin({
       if (statsEnable) cmds.push('!stats — ваша статистика');
       if (bonusEnable) cmds.push('!bonus — ваши бонусы');
       if (reportEnable) cmds.push('!report <текст> — репорт админам');
-      if (stvolEnable) cmds.push('!ствол — рулетка ствола');
       if (rollEnable) cmds.push('!roll — случайное число');
       if (discordEnable) cmds.push('!discord — ссылка на Discord');
       if (fixEnable) cmds.push('!fix — починить застрявшего бойца');
-      if (swapEnable) cmds.push('!swap — сменить команду');
+      if (swapEnable) cmds.push('!swap — сменить команду (1 раз за игру)');
       if (invEnable) cmds.push('!inv <номер отряда> — попроситься в отряд');
       if (adminsEnable) cmds.push('!admins — связь с админами');
 
@@ -295,6 +261,15 @@ export default definePlugin({
       const player = list?.find((p) => p.steamID === steamID);
       if (!list || !player) return;
 
+      if (swappedPlayers.has(steamID)) {
+        adminWarn(
+          execute,
+          steamID,
+          'Команду можно использовать 1 раз за игру.',
+        );
+        return;
+      }
+
       const team1 = list.filter((p) => p.teamID === '1').length;
       const team2 = list.filter((p) => p.teamID === '2').length;
       const playerTeam = player.teamID;
@@ -319,37 +294,8 @@ export default definePlugin({
         }
       }
 
-      const isVip = Boolean(state.admins?.[steamID]?.reserve);
-      const cooldown = (isVip ? swapTimeoutVip : swapTimeout) || 600000;
-      const existing = swapHistory.find((p) => p.steamID === steamID);
-
-      if (existing && !isBalancing) {
-        const remaining = Math.max(
-          0,
-          cooldown - (Date.now() - existing.startTime),
-        );
-        const minutes = Math.ceil(remaining / 60000);
-        adminWarn(
-          execute,
-          steamID,
-          `Команда будет доступна через ${minutes} мин.`,
-        );
-        return;
-      }
-
       adminForceTeamChange(execute, steamID);
-      if (isBalancing) return;
-
-      const timer = setTimeout(() => {
-        const index = swapHistory.findIndex((p) => p.steamID === steamID);
-        if (index !== -1) swapHistory.splice(index, 1);
-      }, cooldown);
-
-      swapHistory.push({
-        steamID,
-        deletionTimer: timer,
-        startTime: Date.now(),
-      });
+      swappedPlayers.add(steamID);
     };
 
     const inv = (data: TChatMessage) => {
@@ -460,7 +406,6 @@ export default definePlugin({
       [EVENTS.CHAT_COMMAND_REPORT, report],
       [EVENTS.CHAT_COMMAND_R, report],
       [EVENTS.CHAT_COMMAND_REP, report],
-      [EVENTS.CHAT_COMMAND_STVOL, stvol],
       [EVENTS.CHAT_COMMAND_ROLL, roll],
       [EVENTS.CHAT_COMMAND_FIX, fix],
       [EVENTS.CHAT_COMMAND_BONUS, bonus],
@@ -473,6 +418,7 @@ export default definePlugin({
       [EVENTS.CHAT_COMMAND_BALANCE, balanceOn],
       [EVENTS.CHAT_COMMAND_BALANCE_OFF, balanceOff],
       [EVENTS.CHAT_MESSAGE, inv],
+      [EVENTS.NEW_GAME, () => swappedPlayers.clear()],
     ];
 
     for (const [event, handler] of subscriptions) {
@@ -485,8 +431,7 @@ export default definePlugin({
       }
       for (const t of timers) clearTimeout(t);
       timers.clear();
-      for (const item of swapHistory) clearTimeout(item.deletionTimer);
-      swapHistory.length = 0;
+      swappedPlayers.clear();
     });
   },
 });

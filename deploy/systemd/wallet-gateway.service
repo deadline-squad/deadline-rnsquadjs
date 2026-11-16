@@ -1,0 +1,12 @@
+[Unit]
+Description=Coins wallet gateway for game servers
+After=network-online.target
+
+[Service]
+EnvironmentFile=/etc/wallet-gateway.env
+ExecStart=/usr/bin/node /home/RNSquadJS/lib/wallet-gateway-main.js
+Restart=on-failure
+RestartSec=5
+
+[Install]
+WantedBy=multi-user.target
