@@ -109,7 +109,7 @@ Enable a plugin by adding it to a server's `plugins` array with
 | `voteMapMods`        | Vote to switch to a modded map.                                         |
 | `openPoints`         | RAAS: vote paid in site coins to turn fog of war off (`!открытьточки`). |
 | `skipmap`            | Vote to skip the current map.                                           |
-| `chatCommands`       | Chat commands: `!admins !report !stvol !roll !fix !discord !stats !help`.|
+| `chatCommands`       | Chat commands: `!admins !report !roll !fix !discord !stats !help`.|
 | `randomizerMaps`     | Randomizes maps, factions and unit types on a new game.                 |
 | `smartBalance`       | Balances teams by headcount and skill, keeping clans/parties together.  |
 

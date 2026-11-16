@@ -109,3 +109,85 @@ describe('chatCommands !inv', () => {
     expect(warnsTo(commands, 'leader3')).toHaveLength(1);
   });
 });
+
+describe('chatCommands !sw', () => {
+  const setupSwap = () => {
+    const fake = createFakeState({ players });
+    chatCommands.setup({
+      state: fake.state,
+      options: chatCommands.optionsSchema!.parse({ swapEnable: true }),
+      logger: fake.state.logger,
+      registerDisposable: () => {},
+    });
+    return fake;
+  };
+
+  const swapAs = (listener: EventEmitter, steamID: string) =>
+    listener.emit(EVENTS.CHAT_COMMAND_SW, { steamID, name: steamID });
+
+  const teamChanges = (commands: string[]) =>
+    commands.filter((c) => c.startsWith('AdminForceTeamChange'));
+
+  it('changes the team on the first use', () => {
+    const { listener, commands } = setupSwap();
+    swapAs(listener, 'requester');
+
+    expect(teamChanges(commands)).toHaveLength(1);
+  });
+
+  it('refuses a second use in the same game', () => {
+    const { listener, commands } = setupSwap();
+    swapAs(listener, 'requester');
+    swapAs(listener, 'requester');
+
+    expect(teamChanges(commands)).toHaveLength(1);
+    expect(warnsTo(commands, 'requester').at(-1)).toContain('1 раз за игру');
+  });
+
+  it('refuses a second use through any alias', () => {
+    const { listener, commands } = setupSwap();
+    swapAs(listener, 'requester');
+    listener.emit(EVENTS.CHAT_COMMAND_SWAP, { steamID: 'requester' });
+    listener.emit(EVENTS.CHAT_COMMAND_SWITCH, { steamID: 'requester' });
+
+    expect(teamChanges(commands)).toHaveLength(1);
+  });
+
+  it('keeps the limit per player', () => {
+    const { listener, commands } = setupSwap();
+    swapAs(listener, 'requester');
+    swapAs(listener, 'leader3');
+
+    expect(teamChanges(commands)).toHaveLength(2);
+  });
+
+  it('allows a new swap after a new game starts', () => {
+    const { listener, commands } = setupSwap();
+    swapAs(listener, 'requester');
+    listener.emit(EVENTS.NEW_GAME, {});
+    swapAs(listener, 'requester');
+
+    expect(teamChanges(commands)).toHaveLength(2);
+  });
+});
+
+describe('chatCommands !ствол', () => {
+  it('is no longer a command: no broadcast and no entry in !help', () => {
+    const fake = createFakeState({ players });
+    chatCommands.setup({
+      state: fake.state,
+      options: chatCommands.optionsSchema!.parse({
+        rollEnable: true,
+        stvolEnable: true,
+      }),
+      logger: fake.state.logger,
+      registerDisposable: () => {},
+    });
+    const data = { steamID: 'requester', name: 'Requester', message: '' };
+
+    fake.listener.emit('CHAT_COMMAND:ствол', data);
+    fake.listener.emit(EVENTS.CHAT_COMMAND_HELP, data);
+
+    expect(fake.commands.filter((c) => c.includes('ствол'))).toHaveLength(0);
+  });
+});
